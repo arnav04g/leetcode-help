@@ -1,0 +1,46 @@
+{
+  "name": "leetcode-help",
+  "displayName": "leetcode_help",
+  "description": "A VS Code extension to fetch and run LeetCode test cases for competitive programming.",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:leetcode-help.fetchTestCases",
+    "onCommand:leetcode-help.runTestCases"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "leetcode-help.fetchTestCases",
+        "title": "Fetch Test Cases"
+      },
+      {
+        "command": "leetcode-help.runTestCases",
+        "title": "Run Test Cases"
+      }
+    ]
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "pretest": "npm run lint",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.96.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.16.0"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "puppeteer": "^23.11.1"
+  }
+}
