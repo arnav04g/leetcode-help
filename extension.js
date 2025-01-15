@@ -174,7 +174,19 @@ function getLanguageSelectionHtml() {
   `;
 }
 
-// Function to handle template fetching and file writing based on selected language
+// Function to sanitize the extracted text
+function sanitizeText(text) {
+  // Replace non-breaking spaces with regular spaces
+  text = text.replace(/\u00A0/g, " ");
+  // Replace smart quotes with regular quotes
+  text = text.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+  // Optionally, remove any other non-printable characters
+  text = text.replace(/[\x00-\x1F\x7F]/g, ""); // Remove control characters
+  // Return the sanitized text
+  return text;
+}
+
+// Function to handle template fetching and test case fetching
 async function fetchAndGenerateTemplate(selectedLanguage, leetcodeUrl, context) {
   try {
     // Launch Puppeteer browser and fetch data from LeetCode
@@ -188,23 +200,52 @@ async function fetchAndGenerateTemplate(selectedLanguage, leetcodeUrl, context) 
     await page.goto(leetcodeUrl);
     await page.waitForSelector('pre');
 
-    const preContents = await page.$$eval('pre', elements =>
-      elements.map(element => element.innerHTML.trim())
+    const codeTemplate = await page.$$eval('.view-lines .view-line', (lines) =>
+      lines.map((line) => line.innerText).join('\n')
     );
+    const sanitizedCode = sanitizeText(codeTemplate);
+    console.log(sanitizedCode);
+const testCases = await page.$$eval('pre', (preElements) => {
+  // Create an array to store test case data
+  return preElements.map((pre) => {
+    const text = pre.innerText.trim();
+    
+    // Assuming the "Input:" and "Output:" labels are within <strong> tags
+    const inputMatch = text.match(/Input:\s*([\s\S]+?)(?=Output:|$)/);
+    //const outputMatch = text.match(/Output:\s*([\s\S]+?)(?=Input:|$)/);
+    const outputMatch = text.match(/Output:\s*([\s\S]+?)(?=<strong>|Explanation:|$)/);
 
-    const codeTemplate = await page.$$eval('.view-lines.monaco-mouse-cursor-text .view-line span', spans =>
-      spans.map(span => span.textContent).join('\n')
-    );
+    const cleanText = (str) => str.replace(/[=+\-*/a-zA-Z!@#$%^&()_{}\[\]:;'"<>?,.~`\\|]/g, ' ').replace(/\s+/g, ' ').trim();
 
+    return {
+      input: inputMatch ? cleanText(inputMatch[1]) : '',
+      output: outputMatch ? cleanText(outputMatch[1]) : ''
+    };
+  }).filter(testCase => testCase.input && testCase.output); // Filter out empty test cases
+});
+
+// Save test cases
+const folderPath = path.join(context.extensionPath, 'testcases');
+if (!fs.existsSync(folderPath)) {
+  fs.mkdirSync(folderPath);
+}
+
+testCases.forEach((testCase, index) => {
+  const inputFilePath = path.join(folderPath, `input${index + 1}.txt`);
+  const outputFilePath = path.join(folderPath, `output${index + 1}.txt`);
+  fs.writeFileSync(inputFilePath, testCase.input, 'utf8');
+  fs.writeFileSync(outputFilePath, testCase.output, 'utf8');
+});
+
+
+    // Write the code template based on the selected language
     if (selectedLanguage === 'C++') {
-      // Handle C++ Template
       const codeFilePath = path.join(context.extensionPath, 'code.cpp');
-      fs.writeFileSync(codeFilePath, codeTemplate, 'utf8');
+      fs.writeFileSync(codeFilePath, sanitizedCode, 'utf8');
       const document = await vscode.workspace.openTextDocument(codeFilePath);
       await vscode.window.showTextDocument(document);
     } else if (selectedLanguage === 'Python') {
-      // Handle Python Template
-      const pythonTemplate = codeTemplate.replace('int main', 'def main()');
+      const pythonTemplate = sanitizedCode.replace('int main', 'def main()');
       const codeFilePath = path.join(context.extensionPath, 'code.py');
       fs.writeFileSync(codeFilePath, pythonTemplate, 'utf8');
       const document = await vscode.workspace.openTextDocument(codeFilePath);
@@ -214,13 +255,8 @@ async function fetchAndGenerateTemplate(selectedLanguage, leetcodeUrl, context) 
     await browser.close();
   } catch (error) {
     console.error(error);
-    vscode.window.showErrorMessage('Failed to fetch and generate code template.');
+    vscode.window.showErrorMessage('Failed to fetch test cases and problem template.');
   }
 }
 
-function deactivate() {}
-
-module.exports = {
-  activate,
-  deactivate
-};
+exports.activate = activate;
