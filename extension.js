@@ -23,11 +23,16 @@ async function activate(context) {
   runTestCasesButton.tooltip = 'Run test cases against your solution';
   runTestCasesButton.show();
 
-  context.subscriptions.push(fetchTestCasesButton, runTestCasesButton);
+  const addTestCaseButton = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 98);
+  addTestCaseButton.text = '$(add) Add Test Case';
+  addTestCaseButton.command = 'leetcode-help.addTestCase';
+  addTestCaseButton.tooltip = 'Add custom test case';
+  addTestCaseButton.show();
+
+  context.subscriptions.push(fetchTestCasesButton, runTestCasesButton, addTestCaseButton);
 
   // Command to fetch test cases with language selection via GUI
   const fetchTestCases = vscode.commands.registerCommand('leetcode-help.fetchTestCases', async function () {
-    // Create Webview Panel for Language Selection
     const panel = vscode.window.createWebviewPanel(
       'languageSelection',
       'Select Language (C++/Python)',
@@ -35,10 +40,8 @@ async function activate(context) {
       { enableScripts: true }
     );
 
-    // Set the HTML content for the Webview Panel
     panel.webview.html = getLanguageSelectionHtml();
 
-    // Listen for messages from the Webview
     panel.webview.onDidReceiveMessage(async (message) => {
       if (message.command === 'languageSelected') {
         const selectedLanguage = message.language;
@@ -68,7 +71,6 @@ async function activate(context) {
 
   context.subscriptions.push(fetchTestCases);
 
-  // Command to run test cases
   const runTestCases = vscode.commands.registerCommand('leetcode-help.runTestCases', async function () {
     try {
       const folderPath = path.join(context.extensionPath, 'testcases');
@@ -90,7 +92,6 @@ async function activate(context) {
         return;
       }
 
-      // Compile C++ code if it exists
       if (fs.existsSync(codeCppPath)) {
         try {
           execSync(`g++ "${codeCppPath}" -o code`, { cwd: context.extensionPath });
@@ -101,7 +102,6 @@ async function activate(context) {
         }
       }
 
-      // Run test cases
       const testCaseFiles = fs.readdirSync(folderPath).filter(file => file.startsWith('input'));
 
       for (const testCaseFile of testCaseFiles) {
@@ -118,15 +118,9 @@ async function activate(context) {
           const actualOutput = fs.readFileSync(actualOutputFilePath, 'utf8').trim();
 
           if (expectedOutput === actualOutput) {
-            console.log(`Test case ${testCaseNumber}: Passed`);
             vscode.window.showInformationMessage(`Test case ${testCaseNumber}: Passed`);
           } else {
-            console.log(`Test case ${testCaseNumber}: Failed`);
-            console.log(`Expected: ${expectedOutput}`);
-            console.log(`Actual: ${actualOutput}`);
             vscode.window.showInformationMessage(`Test case ${testCaseNumber}: Failed`);
-            vscode.window.showInformationMessage(`Expected: ${expectedOutput}`);
-            vscode.window.showInformationMessage(`Actual: ${actualOutput}`);
           }
         } catch (error) {
           console.error(`Error running test case ${testCaseNumber}:`, error.message);
@@ -141,7 +135,57 @@ async function activate(context) {
   });
 
   context.subscriptions.push(runTestCases);
+
+  const addTestCase = vscode.commands.registerCommand('leetcode-help.addTestCase', async function () {
+    try {
+      const input = await vscode.window.showInputBox({
+        placeHolder: 'Enter the input for the test case',
+        prompt: 'Input for the test case',
+      });
+
+      if (!input || input.trim() === '') {
+        vscode.window.showErrorMessage('No input provided or input is empty.');
+        return;
+      }
+
+      const output = await vscode.window.showInputBox({
+        placeHolder: 'Enter the expected output for the test case',
+        prompt: 'Expected output for the test case',
+      });
+
+      if (!output || output.trim() === '') {
+        vscode.window.showErrorMessage('No output provided or output is empty.');
+        return;
+      }
+
+      const folderPath = path.join(context.extensionPath, 'testcases');
+      if (!fs.existsSync(folderPath)) {
+        fs.mkdirSync(folderPath, { recursive: true });
+      }
+
+      const existingTestCases = fs
+        .readdirSync(folderPath)
+        .filter(file => /^input\d+\.txt$/.test(file)).length;
+      const newTestCaseNumber = existingTestCases + 1;
+
+      const inputFilePath = path.join(folderPath, `input${newTestCaseNumber}.txt`);
+      const outputFilePath = path.join(folderPath, `output${newTestCaseNumber}.txt`);
+
+      fs.writeFileSync(inputFilePath, input.trim(), 'utf8');
+      fs.writeFileSync(outputFilePath, output.trim(), 'utf8');
+
+      vscode.window.showInformationMessage(`Test case ${newTestCaseNumber} added successfully!`);
+    } catch (error) {
+      console.error('Error adding test case:', error);
+      vscode.window.showErrorMessage('Failed to add the test case. Please try again.');
+    }
+  });
+
+  context.subscriptions.push(addTestCase);
 }
+
+exports.activate = activate;
+
 
 // Function to generate HTML for Language Selection Webview
 function getLanguageSelectionHtml() {
