@@ -10,7 +10,6 @@ const puppeteer = require('puppeteer');
 async function activate(context) {
   console.log('Congratulations, your extension "leetcode-help" is now active!');
 
-  // Status bar buttons
   const fetchTestCasesButton = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   fetchTestCasesButton.text = '$(cloud-download) Fetch Test Cases';
   fetchTestCasesButton.command = 'leetcode-help.fetchTestCases';
@@ -31,7 +30,6 @@ async function activate(context) {
 
   context.subscriptions.push(fetchTestCasesButton, runTestCasesButton, addTestCaseButton);
 
-  // Command to fetch test cases with language selection via GUI
   const fetchTestCases = vscode.commands.registerCommand('leetcode-help.fetchTestCases', async function () {
     const panel = vscode.window.createWebviewPanel(
       'languageSelection',
@@ -187,7 +185,6 @@ async function activate(context) {
 exports.activate = activate;
 
 
-// Function to generate HTML for Language Selection Webview
 function getLanguageSelectionHtml() {
   return `
     <!DOCTYPE html>
@@ -218,22 +215,16 @@ function getLanguageSelectionHtml() {
   `;
 }
 
-// Function to sanitize the extracted text
 function sanitizeText(text) {
-  // Replace non-breaking spaces with regular spaces
   text = text.replace(/\u00A0/g, " ");
-  // Replace smart quotes with regular quotes
   text = text.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
-  // Optionally, remove any other non-printable characters
-  text = text.replace(/[\x00-\x1F\x7F]/g, ""); // Remove control characters
+  text = text.replace(/[\x00-\x1F\x7F]/g, "");
   // Return the sanitized text
   return text;
 }
 
-// Function to handle template fetching and test case fetching
 async function fetchAndGenerateTemplate(selectedLanguage, leetcodeUrl, context) {
   try {
-    // Launch Puppeteer browser and fetch data from LeetCode
     const browser = await puppeteer.launch({
       headless: false,
       defaultViewport: null,
@@ -243,20 +234,18 @@ async function fetchAndGenerateTemplate(selectedLanguage, leetcodeUrl, context) 
     const page = await browser.newPage();
     await page.goto(leetcodeUrl);
     await page.waitForSelector('pre');
-
+    await page.waitForSelector('.view-lines .view-line');
     const codeTemplate = await page.$$eval('.view-lines .view-line', (lines) =>
-      lines.map((line) => line.innerText).join('\n')
+      lines.map((line) => line.innerText).join(' ')
     );
+    console.log(codeTemplate);
     const sanitizedCode = sanitizeText(codeTemplate);
     console.log(sanitizedCode);
-const testCases = await page.$$eval('pre', (preElements) => {
-  // Create an array to store test case data
+    const testCases = await page.$$eval('pre', (preElements) => {
   return preElements.map((pre) => {
     const text = pre.innerText.trim();
     
-    // Assuming the "Input:" and "Output:" labels are within <strong> tags
     const inputMatch = text.match(/Input:\s*([\s\S]+?)(?=Output:|$)/);
-    //const outputMatch = text.match(/Output:\s*([\s\S]+?)(?=Input:|$)/);
     const outputMatch = text.match(/Output:\s*([\s\S]+?)(?=<strong>|Explanation:|$)/);
 
     const cleanText = (str) => str.replace(/[=+\-*/a-zA-Z!@#$%^&()_{}\[\]:;'"<>?,.~`\\|]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -265,10 +254,9 @@ const testCases = await page.$$eval('pre', (preElements) => {
       input: inputMatch ? cleanText(inputMatch[1]) : '',
       output: outputMatch ? cleanText(outputMatch[1]) : ''
     };
-  }).filter(testCase => testCase.input && testCase.output); // Filter out empty test cases
+  }).filter(testCase => testCase.input && testCase.output); 
 });
 
-// Save test cases
 const folderPath = path.join(context.extensionPath, 'testcases');
 if (!fs.existsSync(folderPath)) {
   fs.mkdirSync(folderPath);
@@ -280,9 +268,6 @@ testCases.forEach((testCase, index) => {
   fs.writeFileSync(inputFilePath, testCase.input, 'utf8');
   fs.writeFileSync(outputFilePath, testCase.output, 'utf8');
 });
-
-
-    // Write the code template based on the selected language
     if (selectedLanguage === 'C++') {
       const codeFilePath = path.join(context.extensionPath, 'code.cpp');
       fs.writeFileSync(codeFilePath, sanitizedCode, 'utf8');
